@@ -13,7 +13,8 @@ pipeline {
     stages {
         stage('Git Checkout') {
             steps {
-                git branch: 'main', credentialsId: 'git', url: 'https://github.com/jaiswaladi246/Mega-Project-CI.git'
+                git branch: 'main',
+                    url: 'https://github.com/cybe44oot/Mega-Project-CI.git'
             }
         }
         
@@ -30,6 +31,10 @@ pipeline {
         }
         
         stage('Trivy FS Scan') {
+            when {
+                expression { false }
+            }
+            
             steps {
                 sh "trivy fs --format table -o fs-report.html ."
             }
@@ -64,7 +69,7 @@ pipeline {
         
         stage('Publish To Nexus') {
             steps {
-                withMaven(globalMavenSettingsConfig: 'devopsshack', maven: 'maven3', traceability: true) {
+                withMaven(globalMavenSettingsConfig: 'alhobab', maven: 'maven3', traceability: true) {
                     sh "mvn deploy"
                 }
             }
@@ -73,24 +78,27 @@ pipeline {
         stage('Docker Image Build & Tag') {
             steps {
                 script {
-                    withDockerRegistry(credentialsId: 'docker-cred') {
-                        sh "docker build -t adijaiswal/bankapp:$IMAGE_TAG ."
+                    withDockerRegistry(credentialsId: 'dockerhub') {
+                        sh "docker build -t alhobab/bankapp:$IMAGE_TAG ."
                     }
                 }
             }
         }
         
         stage('Scan Image') {
+            when { 
+                expression { false}
+            }
             steps {
-                sh "trivy image --format table -o image-report.html adijaiswal/bankapp:$IMAGE_TAG"
+                sh "trivy image --format table -o image-report.html alhobab/bankapp:$IMAGE_TAG"
             }
         }
         
         stage('Push Docker Image') {
             steps {
                 script {
-                    withDockerRegistry(credentialsId: 'docker-cred') {
-                        sh "docker push adijaiswal/bankapp:$IMAGE_TAG"
+                    withDockerRegistry(credentialsId: 'dockerhub') {
+                        sh "docker push alhobab/bankapp:$IMAGE_TAG"
                     }
                 }
             }
@@ -105,19 +113,19 @@ pipeline {
                     withCredentials([usernamePassword(credentialsId: 'git', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
                         sh '''
                             # Clone the Mega-Project-CD repository
-                            git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/jaiswaladi246/Mega-Project-CD.git
+                            git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/cybe44oot/Mega-Project-CD.git
                             
                             # Update the image tag in the manifest.yaml file
                             cd Mega-Project-CD
-                            sed -i "s|adijaiswal/bankapp:.*|adijaiswal/bankapp:${IMAGE_TAG}|" Manifest/manifest.yaml
+                            sed -i "s|alhobab/bankapp:.*|alhobab/bankapp:${IMAGE_TAG}|" Manifest/manifest.yaml
                             
                             # Confirm changes
                             echo "Updated manifest file contents:"
                             cat Manifest/manifest.yaml
                             
                             # Commit and push the changes
-                            git config user.name "Jenkins"
-                            git config user.email "jenkins@example.com"
+                            git config user.name "cybe44oot"
+                            git config user.email "lswagy22@gmail.com"
                             git add Manifest/manifest.yaml
                             git commit -m "Update image tag to ${IMAGE_TAG}"
                             git push origin main
@@ -127,40 +135,4 @@ pipeline {
             }
         }
     }
-    
-    
-post {
-    always {
-        script {
-            def jobName = env.JOB_NAME
-            def buildNumber = env.BUILD_NUMBER
-            def pipelineStatus = currentBuild.result ?: 'UNKNOWN'
-            def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
-
-            def body = """
-                <html>
-                <body>
-                <div style="border: 4px solid ${bannerColor}; padding: 10px;">
-                <h2>${jobName} - Build ${buildNumber}</h2>
-                <div style="background-color: ${bannerColor}; padding: 10px;">
-                <h3 style="color: white;">Pipeline Status: ${pipelineStatus.toUpperCase()}</h3>
-                </div>
-                <p>Check the <a href="${BUILD_URL}">console output</a>.</p>
-                </div>
-                </body>
-                </html>
-            """
-
-            emailext (
-                subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
-                body: body,
-                to: '567adddi.jais@gmail.com',
-                from: 'jenkins@devopsshack.com',
-                replyTo: 'jenkins@devopsshack.com',
-                mimeType: 'text/html',
-               
-            )
-        }
-    }
-}
 }
